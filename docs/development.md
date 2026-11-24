@@ -53,9 +53,13 @@ register `http://localhost:5173/api/v1/auth/oidc/callback` there.
 ## Releasing
 
 1. Make sure `main` is green.
-2. Set the new version in the three `package.json` files and in
+2. Set the new version in the four `package.json` files and in
    `deploy/helm/bmm/Chart.yaml` (`version` and `appVersion`), and commit.
-3. Tag and push: `git tag v1.2.3 && git push origin v1.2.3`.
+3. Tag the pushed commit, not whatever a local clone happens to hold:
+   `git fetch origin && git tag -a v1.2.3 -m "BMM 1.2.3" origin/main && git push origin v1.2.3`.
+
+The Publish workflow refuses a tag whose version differs from the one in the
+source it points at, which is what a tag made on a stale clone looks like.
 
 The Publish workflow builds the image for both architectures, walks through
 it, scans it, pushes the chart to `oci://ghcr.io/baakhoff/charts/bmm` and
