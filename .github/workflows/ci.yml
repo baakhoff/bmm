@@ -90,7 +90,9 @@ jobs:
         run: |
           helm package deploy/helm/bmm --version "1.2.3+0123456789ab" --app-version "1.2.3+0123456789ab" -d /tmp/chart
           helm template bmm /tmp/chart/bmm-1.2.3+0123456789ab.tgz > /tmp/plus.yaml
+          grep -E '(helm\.sh/chart|app\.kubernetes\.io/version): ' /tmp/plus.yaml | sort | uniq -c
           grep -q 'helm.sh/chart: "bmm-1.2.3_0123456789ab"' /tmp/plus.yaml
+          grep -q 'app.kubernetes.io/version: "1.2.3_0123456789ab"' /tmp/plus.yaml
           bad=$(grep -E '^\s+(app\.kubernetes\.io|helm\.sh)/[a-z-]+: ' /tmp/plus.yaml \
             | sed -E 's/^[^:]+: "?([^"]*)"?$/\1/' \
             | grep -vE '^([A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?)?$' || true)

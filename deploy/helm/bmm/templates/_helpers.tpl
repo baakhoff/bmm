@@ -5,7 +5,7 @@ refused. Same treatment as Helm's own chart scaffold, plus a strip of
 anything else a label cannot hold.
 */}}
 {{- define "bmm.labelValue" -}}
-{{- . | toString | replace "+" "_" | regexReplaceAll "[^A-Za-z0-9._-]" "_" | trunc 63 | trimSuffix "-" | trimSuffix "_" | trimSuffix "." -}}
+{{- regexReplaceAll "[^A-Za-z0-9._-]" (toString .) "_" | trunc 63 | trimSuffix "-" | trimSuffix "_" | trimSuffix "." -}}
 {{- end -}}
 
 {{- define "bmm.name" -}}
