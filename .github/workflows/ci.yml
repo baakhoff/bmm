@@ -29,6 +29,45 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  postgres:
+    name: Runs on Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: bmm
+          POSTGRES_PASSWORD: bmm
+          POSTGRES_DB: bmm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bmm -d bmm" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Start BMM against Postgres and walk through it
+        env:
+          DATABASE_URL: postgres://bmm:bmm@localhost:5432/bmm
+          BMM_WEB_DIR: ../web/dist
+        run: |
+          (cd apps/server && node dist/main.js > /tmp/bmm.log 2>&1 &)
+          node scripts/smoke.mjs http://localhost:3000 --web || { cat /tmp/bmm.log; exit 1; }
+      - name: Restart on the same database, which re-runs the migrator
+        env:
+          DATABASE_URL: postgres://bmm:bmm@localhost:5432/bmm
+          BMM_PORT: 3001
+        run: |
+          (cd apps/server && node dist/main.js > /tmp/bmm2.log 2>&1 &)
+          for i in $(seq 1 30); do curl -fsS localhost:3001/readyz && break || sleep 1; done
+          test "$(curl -fsS localhost:3001/api/v1/auth/status | jq -r .setupRequired)" = "false" || { cat /tmp/bmm2.log; exit 1; }
+
   chart:
     name: Helm chart
     runs-on: ubuntu-latest

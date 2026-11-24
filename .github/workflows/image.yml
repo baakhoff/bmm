@@ -41,16 +41,11 @@ jobs:
           build-args: VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Start the image and wait for it to answer
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Start the published image and walk through it
         run: |
-          docker run -d --name bmm -p 3000:3000 "$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
-          for i in $(seq 1 30); do
-            if curl -fsS localhost:3000/readyz; then
-              curl -fsS localhost:3000/api/v1/auth/status
-              curl -fsS -o /dev/null localhost:3000/login
-              exit 0
-            fi
-            sleep 2
-          done
-          docker logs bmm
-          exit 1
+          image="$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
+          docker run -d --name bmm --read-only --tmpfs /tmp --cap-drop ALL -p 3000:3000 "$image"
+          node scripts/smoke.mjs http://localhost:3000 --web || { docker logs bmm; exit 1; }
