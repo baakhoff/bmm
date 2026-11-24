@@ -15,6 +15,9 @@ config:
   passwordLogin: true
   # If set, creating the first admin requires this value.
   setupToken: ""
+  # Ask GitHub a few times a day whether a newer release exists, and say so in
+  # the UI. Nothing about the instance is sent.
+  updateCheck: true
   logLevel: info
 
 oidc:
@@ -36,7 +39,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: 18-alpine
+    tag: 18.7-alpine3.24@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
   auth:
     # Leave empty to have one generated and kept across upgrades. Tools that
     # only render templates (Argo CD) cannot keep it: set a password or an

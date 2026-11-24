@@ -17,9 +17,9 @@ jobs:
     name: Lint, types, tests, build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -44,9 +44,9 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U bmm -d bmm" --health-interval 5s --health-timeout 3s --health-retries 20
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: pnpm
@@ -56,6 +56,7 @@ jobs:
         env:
           DATABASE_URL: postgres://bmm:bmm@localhost:5432/bmm
           BMM_WEB_DIR: ../web/dist
+          BMM_UPDATE_CHECK: "false"
         run: |
           (cd apps/server && node dist/main.js > /tmp/bmm.log 2>&1 &)
           node scripts/smoke.mjs http://localhost:3000 --web || { cat /tmp/bmm.log; exit 1; }
@@ -63,17 +64,17 @@ jobs:
         env:
           DATABASE_URL: postgres://bmm:bmm@localhost:5432/bmm
           BMM_PORT: 3001
+          BMM_UPDATE_CHECK: "false"
         run: |
           (cd apps/server && node dist/main.js > /tmp/bmm2.log 2>&1 &)
           for i in $(seq 1 30); do curl -fsS localhost:3001/readyz && break || sleep 1; done
           test "$(curl -fsS localhost:3001/api/v1/auth/status | jq -r .setupRequired)" = "false" || { cat /tmp/bmm2.log; exit 1; }
 
   chart:
-    name: Helm chart
+    name: Helm chart renders valid Kubernetes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: azure/setup-helm@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: helm lint deploy/helm/bmm
       - name: Render the default and the external-everything variants
         run: |
@@ -90,16 +91,51 @@ jobs:
           docker run --rm -v "$PWD/rendered:/rendered" ghcr.io/yannh/kubeconform:v0.7.0
           -strict -summary /rendered
 
-  image:
-    name: Image builds
-    if: github.event_name == 'pull_request'
+  cluster:
+    name: Installs and upgrades on Kubernetes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          push: false
+          load: true
+          tags: bmm:ci
+          build-args: VERSION=ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Create a cluster and give it the image
+        run: |
+          kind create cluster --wait 120s
+          kind load docker-image bmm:ci
+      - name: Install the chart
+        run: |
+          helm install bmm deploy/helm/bmm --namespace bmm --create-namespace \
+            --set image.repository=bmm --set image.tag=ci --set image.pullPolicy=Never \
+            --set config.updateCheck=false \
+            --wait --timeout 5m
+      - name: Walk through the installed instance
+        run: |
+          kubectl -n bmm port-forward svc/bmm 3000:80 > /tmp/pf.log 2>&1 &
+          node scripts/smoke.mjs http://localhost:3000 --web
+      - name: Upgrade in place and check that nothing was lost
+        run: |
+          helm upgrade bmm deploy/helm/bmm --namespace bmm \
+            --set image.repository=bmm --set image.tag=ci --set image.pullPolicy=Never \
+            --set config.updateCheck=false --set-string podAnnotations.upgraded=yes \
+            --wait --timeout 5m
+          pkill -f "port-forward svc/bmm" || true
+          kubectl -n bmm port-forward svc/bmm 3002:80 > /tmp/pf2.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS localhost:3002/readyz && break || sleep 1; done
+          # The admin created before the upgrade is still there: the database
+          # password was kept and the data volume survived.
+          test "$(curl -fsS localhost:3002/api/v1/auth/status | jq -r .setupRequired)" = "false"
+      - name: Show what happened
+        if: failure()
+        run: |
+          kubectl -n bmm get all,pvc,networkpolicy
+          kubectl -n bmm describe pods
+          kubectl -n bmm logs deploy/bmm --tail=200 || true
+          kubectl -n bmm logs statefulset/bmm-postgres --tail=100 || true

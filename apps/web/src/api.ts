@@ -8,6 +8,7 @@ import type {
   LoginRequest,
   Me,
   SetupRequest,
+  SystemVersion,
   User,
 } from '@bmm/shared';
 
@@ -56,5 +57,6 @@ export const api = {
   tokens: () => call<{ items: ApiToken[] }>('GET', '/tokens'),
   createToken: (b: CreateApiTokenRequest) => call<CreatedApiToken>('POST', '/tokens', b),
   revokeToken: (id: string) => call<void>('DELETE', `/tokens/${id}`),
+  version: () => call<SystemVersion>('GET', '/system/version'),
   audit: (before?: string) => call<AuditPage>('GET', `/audit?limit=50${before ? `&before=${before}` : ''}`),
 };

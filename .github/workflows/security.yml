@@ -1,0 +1,142 @@
+name: Security
+
+# Runs on every change, and every night: a CVE published tomorrow affects
+# the code and images that passed today.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    name: Known vulnerabilities in dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: What ships in the image must be clean of high and critical advisories
+        run: pnpm audit --prod --audit-level high
+      - name: Build and test tooling too
+        run: pnpm audit --audit-level high
+
+  dependency-review:
+    name: New dependencies in this pull request
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
+        with:
+          fail-on-severity: high
+
+  codeql:
+    name: Code analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          category: /language:${{ matrix.language }}
+
+  config:
+    name: Dockerfile and chart misconfigurations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Record every finding in the Security tab
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        with:
+          args: config --format sarif --output trivy-config.sarif .
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-config
+      - name: Fail on high and critical ones
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        with:
+          args: config --severity HIGH,CRITICAL --exit-code 1 .
+
+  image:
+    name: CVEs in the published image (${{ matrix.tag }})
+    # Pull requests build their own image in CI; this job watches what people actually run.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: [latest, edge]
+    steps:
+      - name: Does the tag exist yet?
+        id: exists
+        run: |
+          if docker manifest inspect ghcr.io/${{ github.repository }}:${{ matrix.tag }} > /dev/null 2>&1; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No :${{ matrix.tag }} image published yet, nothing to scan."
+          fi
+      - name: Record every finding in the Security tab
+        if: steps.exists.outputs.yes
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        with:
+          args: image --no-progress --format sarif --output trivy-image.sarif ghcr.io/${{ github.repository }}:${{ matrix.tag }}
+      - uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        if: steps.exists.outputs.yes
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image-${{ matrix.tag }}
+      - name: Fail on high and critical CVEs that have a fix
+        if: steps.exists.outputs.yes
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        with:
+          args: image --no-progress --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 ghcr.io/${{ github.repository }}:${{ matrix.tag }}
+
+  alert:
+    name: Open an issue when the nightly scan fails
+    needs: [dependencies, codeql, config, image]
+    if: always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - run: |
+          gh label create security-scan --color B60205 --description "The nightly security scan found something" --force
+          body="The nightly security scan failed on $(date -u +%F). A dependency or a published image has a known vulnerability with a fix available, or a check broke.
+
+          Run: $RUN_URL
+          Findings: ${{ github.server_url }}/${{ github.repository }}/security/code-scanning"
+          open=$(gh issue list --label security-scan --state open --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh issue create --title "Nightly security scan is failing" --label security-scan --body "$body"
+          fi

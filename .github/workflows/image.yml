@@ -1,37 +1,51 @@
-name: Image
+name: Publish
 
-# main publishes :edge, a v* tag publishes that version and :latest.
+# main publishes :edge. A v* tag publishes that version and :latest, the Helm
+# chart, and a GitHub release. A weekly rebuild of main keeps :edge on a
+# patched base image even when nothing was merged.
 on:
   push:
     branches: [main]
     tags: ["v*"]
+  schedule:
+    - cron: "41 3 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  publish:
+  image:
+    name: Image
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.build.outputs.digest }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=edge,enable={{is_default_branch}}
-            type=sha,format=short,enable={{is_default_branch}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      - uses: docker/build-push-action@v7
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=sha,format=short,enable={{is_default_branch}}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -39,13 +53,59 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ steps.meta.outputs.version }}
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: actions/setup-node@v7
+      - name: Sign a statement of where this image was built
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          node-version: 24
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
       - name: Start the published image and walk through it
         run: |
-          image="$(echo '${{ steps.meta.outputs.tags }}' | head -n1)"
-          docker run -d --name bmm --read-only --tmpfs /tmp --cap-drop ALL -p 3000:3000 "$image"
+          docker run -d --name bmm --read-only --tmpfs /tmp --cap-drop ALL -e BMM_UPDATE_CHECK=false -p 3000:3000 \
+            "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}"
           node scripts/smoke.mjs http://localhost:3000 --web || { docker logs bmm; exit 1; }
+      - name: Refuse to announce an image with a fixable high or critical CVE
+        uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        with:
+          args: image --no-progress --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
+
+  release:
+    name: Chart and release
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.image.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Package the chart at this version and push it
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          helm package deploy/helm/bmm --version "$VERSION" --app-version "$VERSION"
+          helm push "bmm-$VERSION.tgz" "oci://ghcr.io/${{ github.repository_owner }}/charts"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<NOTES
+          ## Install or upgrade
+
+          **Kubernetes**
+
+          \`\`\`bash
+          helm upgrade --install bmm oci://ghcr.io/${{ github.repository_owner }}/charts/bmm --version $VERSION --namespace bmm --create-namespace
+          \`\`\`
+
+          **Docker**: \`ghcr.io/${{ github.repository }}:$VERSION\` (linux/amd64, linux/arm64), digest \`${{ needs.image.outputs.digest }}\`
+
+          Take a backup first. BMM migrates its database when it starts. See [updating](https://github.com/${{ github.repository }}/blob/main/docs/updating.md).
+
+          NOTES
+          gh release create "$GITHUB_REF_NAME" "bmm-$VERSION.tgz" --title "BMM $VERSION" --notes-file notes.md --generate-notes --verify-tag

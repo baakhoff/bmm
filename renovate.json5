@@ -1,0 +1,66 @@
+// Dependency updates. Everything in this repository is pinned: npm packages by
+// the lockfile, GitHub Actions by commit, container images by digest. Pinning
+// without something to move the pins is rot on a delay; this is that something.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "config:recommended",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests",
+  ],
+
+  // One batch a week, and nothing younger than three days: packages get
+  // yanked and re-cut, and a compromised release is usually caught within
+  // that window by someone else.
+  schedule: ["before 6am on monday"],
+  minimumReleaseAge: "3 days",
+  dependencyDashboard: true,
+
+  // A fix for a known vulnerability does not wait for Monday.
+  vulnerabilityAlerts: { enabled: true, schedule: ["at any time"], minimumReleaseAge: null, labels: ["security"] },
+  osvVulnerabilityAlerts: true,
+
+  lockFileMaintenance: { enabled: true, schedule: ["before 6am on the first day of the month"] },
+
+  packageRules: [
+    {
+      description: "Minor and patch npm updates arrive as one PR; CI decides",
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "npm minor and patch",
+    },
+    {
+      description: "Major bumps wait for a human to read the changelog first",
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: "Postgres: a major version needs a dump and restore, never a tag bump",
+      matchPackageNames: ["postgres"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+    {
+      description: "Node: stay on the current LTS line",
+      matchPackageNames: ["node"],
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+    },
+  ],
+
+  customManagers: [
+    {
+      customType: "regex",
+      description: "Versions declared as `# renovate: datasource=... depName=...` above an ARG",
+      managerFilePatterns: ["/(^|/)Dockerfile$/"],
+      matchStrings: ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+ARG \\S+=(?<currentValue>\\S+)"],
+    },
+    {
+      customType: "regex",
+      description: "Images run with `docker run` inside workflows",
+      managerFilePatterns: ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      matchStrings: ["docker run [^\\n]*?(?<depName>ghcr\\.io/[\\w./-]+):(?<currentValue>v?[\\d.]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"],
+      datasourceTemplate: "docker",
+    },
+  ],
+}

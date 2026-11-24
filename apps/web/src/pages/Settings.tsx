@@ -1,13 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useMe, useStatus } from '../App';
+import { useMe, useStatus, useVersion } from '../App';
 import { api } from '../api';
-import { Button, Card, Field, Notice, PageHeader } from '../components/ui';
+import { Button, Card, Field, Notice, PageHeader, relativeTime } from '../components/ui';
 
 export function SettingsPage() {
   const me = useMe();
   const status = useStatus();
+  const version = useVersion();
   const qc = useQueryClient();
   const [params] = useSearchParams();
   const user = me.data?.user;
@@ -154,6 +155,29 @@ export function SettingsPage() {
             </form>
           </Card>
         )}
+        <Card title="About this instance">
+          <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
+            <dt className="text-muted">Version</dt>
+            <dd>{s.version}</dd>
+            <dt className="text-muted">Updates</dt>
+            <dd>
+              {!version.data
+                ? '—'
+                : !version.data.checkEnabled
+                  ? 'Update check is turned off (BMM_UPDATE_CHECK=false).'
+                  : version.data.updateAvailable
+                    ? `Version ${version.data.latestVersion} is available.`
+                    : version.data.updateAvailable === false
+                      ? 'Up to date.'
+                      : version.data.latestVersion
+                        ? `This is a build from main. The latest release is ${version.data.latestVersion}.`
+                        : 'Could not reach GitHub to check.'}
+              {version.data?.checkedAt && (
+                <span className="text-muted"> Checked {relativeTime(version.data.checkedAt)}.</span>
+              )}
+            </dd>
+          </dl>
+        </Card>
       </div>
     </>
   );

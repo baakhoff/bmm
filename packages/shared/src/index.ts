@@ -162,3 +162,16 @@ export const AuditPageSchema = z.object({
   nextBefore: z.string().nullable(),
 });
 export type AuditPage = z.infer<typeof AuditPageSchema>;
+
+export const SystemVersionSchema = z.object({
+  /** What this instance runs. A release is `1.2.3`; a build from main is `edge`. */
+  version: z.string(),
+  /** False when the operator turned the check off. */
+  checkEnabled: z.boolean(),
+  latestVersion: z.string().nullable(),
+  /** null: unknown, because the check is off, has not succeeded, or this is not a release build. */
+  updateAvailable: z.boolean().nullable(),
+  releaseUrl: z.string().nullable(),
+  checkedAt: z.string().nullable(),
+});
+export type SystemVersion = z.infer<typeof SystemVersionSchema>;

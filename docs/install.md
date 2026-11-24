@@ -5,13 +5,11 @@ their own Postgres; you can point either at one you already run.
 
 ## Kubernetes with Helm
 
-The chart lives in this repository under `deploy/helm/bmm`.
+The chart is published as an OCI artifact next to the image.
 
 ```bash
-git clone https://github.com/baakhoff/bmm.git
-helm install bmm bmm/deploy/helm/bmm \
+helm install bmm oci://ghcr.io/baakhoff/charts/bmm --version 0.1.0 \
   --namespace bmm --create-namespace \
-  --set image.tag=edge \
   --set ingress.enabled=true \
   --set ingress.host=bmm.example.com
 ```
@@ -33,44 +31,12 @@ Things you may need to change:
 
 Every value is documented in [`values.yaml`](../deploy/helm/bmm/values.yaml).
 
-### Flux
+### Flux and Argo CD
 
-```yaml
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: GitRepository
-metadata:
-  name: bmm
-  namespace: bmm
-spec:
-  interval: 1h
-  url: https://github.com/baakhoff/bmm
-  ref:
-    branch: main
----
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata:
-  name: bmm
-  namespace: bmm
-spec:
-  interval: 1h
-  chart:
-    spec:
-      chart: deploy/helm/bmm
-      sourceRef:
-        kind: GitRepository
-        name: bmm
-  values:
-    image:
-      tag: edge
-    ingress:
-      enabled: true
-      host: bmm.example.com
-    oidc:
-      issuer: https://id.example.com
-      clientId: your-client-id
-      existingSecret: bmm-oidc # a Secret with key client-secret
-```
+The chart works with both. A ready-to-copy Flux `OCIRepository` and
+`HelmRelease`, pinned or self-updating, is in
+[updating](updating.md#updating-on-kubernetes). With Argo CD, set
+`postgresql.auth.password` or `postgresql.auth.existingSecret` as noted above.
 
 ## Docker Compose
 
@@ -104,5 +70,5 @@ kubectl -n bmm exec bmm-postgres-0 -- pg_dump -U bmm bmm > bmm.sql
 
 ## Upgrading
 
-Pull the new image and restart. BMM migrates its own database schema when it
-starts. Take a backup first.
+See [updating](updating.md): how to hear about releases, update by hand or
+automatically, and roll back.

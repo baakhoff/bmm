@@ -4,7 +4,7 @@ name: bmm
 
 services:
   bmm:
-    image: ghcr.io/baakhoff/bmm:${BMM_TAG:-edge}
+    image: ghcr.io/baakhoff/bmm:${BMM_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -17,6 +17,7 @@ services:
       BMM_TRUST_PROXY: ${BMM_TRUST_PROXY:-false}
       BMM_SETUP_TOKEN: ${BMM_SETUP_TOKEN:-}
       BMM_PASSWORD_LOGIN: ${BMM_PASSWORD_LOGIN:-true}
+      BMM_UPDATE_CHECK: ${BMM_UPDATE_CHECK:-true}
       BMM_OIDC_ISSUER: ${BMM_OIDC_ISSUER:-}
       BMM_OIDC_CLIENT_ID: ${BMM_OIDC_CLIENT_ID:-}
       BMM_OIDC_CLIENT_SECRET: ${BMM_OIDC_CLIENT_SECRET:-}
@@ -31,7 +32,7 @@ services:
       - no-new-privileges:true
 
   postgres:
-    image: postgres:18-alpine
+    image: postgres:18.7-alpine3.24@sha256:0115267ab5a509022df9319c77be365cef335adb71556c75f60f5360ee247e71
     restart: unless-stopped
     environment:
       POSTGRES_USER: bmm

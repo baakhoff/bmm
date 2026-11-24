@@ -27,6 +27,10 @@ export function useMe() {
   });
 }
 
+export function useVersion() {
+  return useQuery({ queryKey: ['version'], queryFn: api.version, staleTime: 30 * 60_000, retry: false });
+}
+
 function FullScreen({ children }: { children: React.ReactNode }) {
   return <div className="grid min-h-dvh place-items-center p-6 text-sm text-muted">{children}</div>;
 }
@@ -84,6 +88,7 @@ const NAV = [
 function Shell() {
   const me = useMe();
   const status = useStatus();
+  const version = useVersion();
   const qc = useQueryClient();
   const signOut = async () => {
     await api.logout().catch(() => undefined);
@@ -130,6 +135,24 @@ function Shell() {
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10">
+        {version.data?.updateAvailable && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md border border-line bg-brand-soft px-4 py-2.5 text-sm">
+            <span>
+              <strong className="font-semibold">BMM {version.data.latestVersion} is available.</strong> This instance
+              runs {version.data.version}.
+            </span>
+            {version.data.releaseUrl && (
+              <a
+                href={version.data.releaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-brand underline-offset-4 hover:underline"
+              >
+                See what changed ↗
+              </a>
+            )}
+          </div>
+        )}
         <Outlet />
         <div className="mt-10 border-line border-t pt-4 md:hidden">
           <button type="button" onClick={signOut} className="text-sm text-muted hover:text-ink">

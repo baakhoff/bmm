@@ -6,3 +6,8 @@ packages:
 # itself arrives as an optional dependency, so the script is not needed.
 allowBuilds:
   esbuild: false
+
+# drizzle-kit still pulls an old esbuild through a deprecated loader
+# (GHSA-67mh-4wv8-2f99, development server only). Force the patched line.
+overrides:
+  "@esbuild-kit/core-utils>esbuild": "^0.25.0"

@@ -35,6 +35,8 @@ const EnvSchema = z.object({
   BMM_OIDC_ALLOWED_SUBJECT: optional,
   /** Directory holding the built web UI. Unset: API only. */
   BMM_WEB_DIR: optional,
+  /** Ask GitHub, a few times a day, whether a newer release exists. Sends nothing about this instance. */
+  BMM_UPDATE_CHECK: bool(true),
   BMM_LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -59,6 +61,7 @@ export interface Config {
       }
     | undefined;
   webDir: string | undefined;
+  updateCheck: boolean;
   logLevel: string;
 }
 
@@ -95,6 +98,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
         }
       : undefined,
     webDir: e.BMM_WEB_DIR,
+    updateCheck: e.BMM_UPDATE_CHECK,
     logLevel: e.BMM_LOG_LEVEL,
   };
 }

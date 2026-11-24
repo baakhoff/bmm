@@ -74,6 +74,8 @@ spec:
               value: {{ .Values.config.trustProxy | quote }}
             - name: BMM_PASSWORD_LOGIN
               value: {{ .Values.config.passwordLogin | quote }}
+            - name: BMM_UPDATE_CHECK
+              value: {{ .Values.config.updateCheck | quote }}
             - name: BMM_LOG_LEVEL
               value: {{ .Values.config.logLevel | quote }}
             {{- if .Values.config.setupToken }}

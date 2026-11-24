@@ -49,3 +49,15 @@ deploy/compose    Docker Compose install
 walks the whole redirect flow. To try against a real provider, set the
 `BMM_OIDC_*` variables and `BMM_PUBLIC_URL=http://localhost:5173`, and
 register `http://localhost:5173/api/v1/auth/oidc/callback` there.
+
+## Releasing
+
+1. Make sure `main` is green.
+2. Set the new version in the three `package.json` files and in
+   `deploy/helm/bmm/Chart.yaml` (`version` and `appVersion`), and commit.
+3. Tag and push: `git tag v1.2.3 && git push origin v1.2.3`.
+
+The Publish workflow builds the image for both architectures, walks through
+it, scans it, pushes the chart to `oci://ghcr.io/baakhoff/charts/bmm` and
+creates the GitHub release. A fixable high or critical CVE in the image
+stops the release before it is announced.

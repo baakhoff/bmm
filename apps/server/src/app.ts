@@ -22,16 +22,29 @@ import { HttpError } from './lib/errors.js';
 import { auditRoutes } from './routes/audit.js';
 import { authRoutes } from './routes/auth.js';
 import { oidcRoutes } from './routes/oidc.js';
+import { systemRoutes } from './routes/system.js';
 import { tokenRoutes } from './routes/tokens.js';
+import { UpdateChecker } from './updates.js';
 
 const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), '../package.json');
 export const VERSION: string = process.env.BMM_VERSION || JSON.parse(readFileSync(pkgPath, 'utf8')).version;
 
 export type App = FastifyInstance & { ctx: AppContext };
 
-export async function buildApp(config: Config = loadConfig()): Promise<App> {
+export interface AppDeps {
+  /** Replaced in tests so nothing leaves the machine. */
+  fetch?: typeof fetch;
+}
+
+export async function buildApp(config: Config = loadConfig(), deps: AppDeps = {}): Promise<App> {
   const dbHandle = await openDb(config.databaseUrl);
-  const ctx: AppContext = { config, db: dbHandle.db, dbHandle, version: VERSION };
+  const ctx: AppContext = {
+    config,
+    db: dbHandle.db,
+    dbHandle,
+    version: VERSION,
+    updates: new UpdateChecker(VERSION, config.updateCheck, deps.fetch ?? fetch),
+  };
 
   const app = Fastify({
     logger:
@@ -124,6 +137,7 @@ export async function buildApp(config: Config = loadConfig()): Promise<App> {
       await api.register(oidcRoutes(ctx));
       await api.register(tokenRoutes(ctx));
       await api.register(auditRoutes(ctx));
+      await api.register(systemRoutes(ctx));
       api.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
     },
     { prefix: '/api/v1' },

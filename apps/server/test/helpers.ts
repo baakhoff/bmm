@@ -1,12 +1,19 @@
 import type { LightMyRequestResponse } from 'fastify';
-import { type App, buildApp } from '../src/app.js';
+import { type App, type AppDeps, buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 
 export const ORIGIN = 'http://bmm.test';
 
-export async function makeApp(env: Record<string, string> = {}): Promise<App> {
+export async function makeApp(env: Record<string, string> = {}, deps: AppDeps = {}): Promise<App> {
   const app = await buildApp(
-    loadConfig({ DATABASE_URL: 'pglite://memory', BMM_LOG_LEVEL: 'silent', BMM_PUBLIC_URL: ORIGIN, ...env }),
+    loadConfig({
+      DATABASE_URL: 'pglite://memory',
+      BMM_LOG_LEVEL: 'silent',
+      BMM_PUBLIC_URL: ORIGIN,
+      BMM_UPDATE_CHECK: 'false',
+      ...env,
+    }),
+    deps,
   );
   await app.ready();
   return app;
