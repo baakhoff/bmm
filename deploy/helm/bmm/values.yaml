@@ -1,0 +1,91 @@
+image:
+  repository: ghcr.io/baakhoff/bmm
+  # Defaults to the chart's appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+config:
+  # The address people open BMM at, e.g. https://bmm.example.com.
+  # Defaults to the ingress host when ingress is enabled.
+  publicUrl: ""
+  # BMM is normally reached through an ingress controller, which sets
+  # X-Forwarded-*. Turn off if the Service is exposed directly.
+  trustProxy: true
+  passwordLogin: true
+  # If set, creating the first admin requires this value.
+  setupToken: ""
+  logLevel: info
+
+oidc:
+  # Any OpenID Connect provider. Register this redirect URI there:
+  #   <publicUrl>/api/v1/auth/oidc/callback
+  issuer: ""
+  clientId: ""
+  clientSecret: ""
+  # Use a Secret you manage instead of clientSecret above (key: client-secret).
+  existingSecret: ""
+  name: SSO
+  scopes: "openid profile email"
+  # Lets the identity with this verified email sign in as an existing admin.
+  allowedEmail: ""
+  allowedSubject: ""
+
+# The bundled database. Turn off and fill in externalDatabase to use your own.
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: 18-alpine
+  auth:
+    # Leave empty to have one generated and kept across upgrades. Tools that
+    # only render templates (Argo CD) cannot keep it: set a password or an
+    # existingSecret (key: password) there. Letters and digits only.
+    password: ""
+    existingSecret: ""
+  persistence:
+    size: 5Gi
+    # Empty: the cluster's default StorageClass.
+    storageClass: ""
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 512Mi }
+
+externalDatabase:
+  # postgres://user:password@host:5432/dbname
+  url: ""
+  # Or a Secret you manage holding the URL.
+  existingSecret: ""
+  existingSecretKey: database-url
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  # Empty: the cluster's default IngressClass.
+  className: ""
+  host: bmm.example.com
+  annotations: {}
+  tls:
+    enabled: true
+    # Empty: no secretName is set and the controller's default certificate
+    # serves the host, which is what a wildcard-certificate setup wants.
+    secretName: ""
+
+networkPolicy:
+  enabled: true
+  # Who may reach the web port. Empty: any pod in the cluster, which is what
+  # most ingress controllers need. Narrow it with standard `from` entries.
+  ingressFrom: []
+
+resources:
+  requests: { cpu: 50m, memory: 192Mi }
+  limits: { memory: 768Mi }
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+extraEnv: []

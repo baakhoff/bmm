@@ -1,0 +1,139 @@
+{{- if and (not .Values.postgresql.enabled) (not .Values.externalDatabase.url) (not .Values.externalDatabase.existingSecret) }}
+{{- fail "Set externalDatabase.url or externalDatabase.existingSecret, or leave postgresql.enabled on." }}
+{{- end }}
+{{- if and .Values.oidc.issuer (not (include "bmm.publicUrl" .)) }}
+{{- fail "OIDC needs config.publicUrl (or ingress.enabled with ingress.host)." }}
+{{- end }}
+{{- if and (not .Values.config.passwordLogin) (not .Values.oidc.issuer) }}
+{{- fail "config.passwordLogin=false needs oidc configured, or nobody could sign in." }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bmm.name" . }}
+  labels: {{- include "bmm.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "bmm.selector" (dict "Release" .Release "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bmm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum | trunc 16 }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bmm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            {{- if .Values.postgresql.enabled }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bmm.pgSecretName" . }}
+                  key: password
+            - name: DATABASE_URL
+              value: "postgres://bmm:$(PGPASSWORD)@{{ include "bmm.name" . }}-postgres:5432/bmm"
+            {{- else }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret | default (include "bmm.name" .) }}
+                  key: {{ ternary .Values.externalDatabase.existingSecretKey "database-url" (not (empty .Values.externalDatabase.existingSecret)) }}
+            {{- end }}
+            {{- with (include "bmm.publicUrl" .) }}
+            - name: BMM_PUBLIC_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: BMM_TRUST_PROXY
+              value: {{ .Values.config.trustProxy | quote }}
+            - name: BMM_PASSWORD_LOGIN
+              value: {{ .Values.config.passwordLogin | quote }}
+            - name: BMM_LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            {{- if .Values.config.setupToken }}
+            - name: BMM_SETUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "bmm.name" . }}
+                  key: setup-token
+            {{- end }}
+            {{- if .Values.oidc.issuer }}
+            - name: BMM_OIDC_ISSUER
+              value: {{ .Values.oidc.issuer | quote }}
+            - name: BMM_OIDC_CLIENT_ID
+              value: {{ required "oidc.clientId is required when oidc.issuer is set" .Values.oidc.clientId | quote }}
+            - name: BMM_OIDC_NAME
+              value: {{ .Values.oidc.name | quote }}
+            - name: BMM_OIDC_SCOPES
+              value: {{ .Values.oidc.scopes | quote }}
+            {{- if or .Values.oidc.clientSecret .Values.oidc.existingSecret }}
+            - name: BMM_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidc.existingSecret | default (include "bmm.name" .) }}
+                  key: client-secret
+            {{- end }}
+            {{- with .Values.oidc.allowedEmail }}
+            - name: BMM_OIDC_ALLOWED_EMAIL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.allowedSubject }}
+            - name: BMM_OIDC_ALLOWED_SUBJECT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

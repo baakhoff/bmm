@@ -1,0 +1,51 @@
+# Development
+
+You need Node 22 or newer and pnpm.
+
+```bash
+pnpm install
+pnpm dev
+```
+
+`pnpm dev` starts the API on <http://localhost:3000> with an embedded
+database under `apps/server/data/`, and the web UI on
+<http://localhost:5173>, which proxies `/api` to the API. Open the second
+address.
+
+## Layout
+
+```
+apps/server       Fastify API, database schema and migrations
+apps/web          React web UI
+packages/shared   Zod schemas shared by both: the single source for request
+                  and response shapes, the OpenAPI document and the UI's types
+deploy/helm/bmm   Helm chart
+deploy/compose    Docker Compose install
+```
+
+## Commands
+
+| Command                                 | Does                                                                |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `pnpm test`                             | Runs the server's tests against an in-memory database.              |
+| `pnpm typecheck`                        | Type-checks every package.                                          |
+| `pnpm lint` / `pnpm format`             | Checks / fixes formatting and lint with Biome.                      |
+| `pnpm build`                            | Builds everything.                                                  |
+| `pnpm --filter @bmm/server db:generate` | Writes a migration after you change `apps/server/src/db/schema.ts`. |
+| `pnpm --filter @bmm/server openapi`     | Prints the OpenAPI document.                                        |
+
+## Conventions
+
+- A request or response shape is a Zod schema in `packages/shared`. Routes
+  validate with it and the UI imports its type; do not write the shape twice.
+- Every state change calls `audit()`.
+- Every route declares the scope it needs with `requireAuth('<scope>')`.
+- Tests go through HTTP (`app.inject`) and assert behaviour a user would
+  notice, not internals.
+
+## Testing single sign-on locally
+
+`apps/server/test/oidc.test.ts` runs a small identity provider in-process and
+walks the whole redirect flow. To try against a real provider, set the
+`BMM_OIDC_*` variables and `BMM_PUBLIC_URL=http://localhost:5173`, and
+register `http://localhost:5173/api/v1/auth/oidc/callback` there.

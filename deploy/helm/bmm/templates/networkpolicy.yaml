@@ -1,0 +1,39 @@
+{{- if .Values.networkPolicy.enabled }}
+# The web port is open to the cluster (or to networkPolicy.ingressFrom).
+# Egress is left open: BMM calls social networks and your identity provider.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bmm.name" . }}
+  labels: {{- include "bmm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "bmm.selector" (dict "Release" .Release "component" "server") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: http
+      {{- with .Values.networkPolicy.ingressFrom }}
+      from: {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.postgresql.enabled }}
+---
+# The database talks to BMM and to nothing else, in either direction.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "bmm.name" . }}-postgres
+  labels: {{- include "bmm.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels: {{- include "bmm.selector" (dict "Release" .Release "component" "postgres") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {{- include "bmm.selector" (dict "Release" .Release "component" "server") | nindent 14 }}
+      ports:
+        - port: postgres
+  egress: []
+{{- end }}
+{{- end }}

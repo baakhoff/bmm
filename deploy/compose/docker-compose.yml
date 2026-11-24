@@ -1,0 +1,49 @@
+# BMM with its own Postgres. Copy .env.example to .env, set the password, then:
+#   docker compose up -d
+name: bmm
+
+services:
+  bmm:
+    image: ghcr.io/baakhoff/bmm:${BMM_TAG:-edge}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${BMM_HTTP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://bmm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/bmm
+      BMM_PUBLIC_URL: ${BMM_PUBLIC_URL:-}
+      BMM_TRUST_PROXY: ${BMM_TRUST_PROXY:-false}
+      BMM_SETUP_TOKEN: ${BMM_SETUP_TOKEN:-}
+      BMM_PASSWORD_LOGIN: ${BMM_PASSWORD_LOGIN:-true}
+      BMM_OIDC_ISSUER: ${BMM_OIDC_ISSUER:-}
+      BMM_OIDC_CLIENT_ID: ${BMM_OIDC_CLIENT_ID:-}
+      BMM_OIDC_CLIENT_SECRET: ${BMM_OIDC_CLIENT_SECRET:-}
+      BMM_OIDC_NAME: ${BMM_OIDC_NAME:-SSO}
+      BMM_OIDC_ALLOWED_EMAIL: ${BMM_OIDC_ALLOWED_EMAIL:-}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bmm
+      POSTGRES_DB: bmm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bmm -d bmm"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
