@@ -17,6 +17,7 @@ jobs:
   dependencies:
     name: Known vulnerabilities in dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -32,6 +33,7 @@ jobs:
     name: New dependencies in this pull request
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/dependency-review-action@bbc44d14a204704ccc493733616cd1e93a0321ec # v5.0.1
@@ -41,6 +43,7 @@ jobs:
   codeql:
     name: Code analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
@@ -61,6 +64,7 @@ jobs:
   config:
     name: Dockerfile and chart misconfigurations
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
@@ -84,6 +88,7 @@ jobs:
     # Pull requests build their own image in CI; this job watches what people actually run.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write
@@ -121,6 +126,7 @@ jobs:
     needs: [dependencies, codeql, config, image]
     if: always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       issues: write
     env:
