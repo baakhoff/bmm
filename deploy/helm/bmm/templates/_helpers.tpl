@@ -1,3 +1,13 @@
+{{/*
+A version is not always a legal label value. Flux installs an OCI chart as
+"0.1.0+<digest>", and "+" is not allowed in a label, so every object would be
+refused. Same treatment as Helm's own chart scaffold, plus a strip of
+anything else a label cannot hold.
+*/}}
+{{- define "bmm.labelValue" -}}
+{{- . | toString | replace "+" "_" | regexReplaceAll "[^A-Za-z0-9._-]" "_" | trunc 63 | trimSuffix "-" | trimSuffix "_" | trimSuffix "." -}}
+{{- end -}}
+
 {{- define "bmm.name" -}}
 {{- .Release.Name | trunc 50 | trimSuffix "-" -}}
 {{- end -}}
@@ -5,9 +15,9 @@
 {{- define "bmm.labels" -}}
 app.kubernetes.io/name: bmm
 app.kubernetes.io/instance: {{ .Release.Name }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ include "bmm.labelValue" .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version }}
+helm.sh/chart: {{ include "bmm.labelValue" (printf "%s-%s" .Chart.Name .Chart.Version) | quote }}
 {{- end -}}
 
 {{- define "bmm.selector" -}}

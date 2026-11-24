@@ -8,7 +8,7 @@ their own Postgres; you can point either at one you already run.
 The chart is published as an OCI artifact next to the image.
 
 ```bash
-helm install bmm oci://ghcr.io/baakhoff/charts/bmm --version 0.1.0 \
+helm install bmm oci://ghcr.io/baakhoff/charts/bmm --version 0.1.1 \
   --namespace bmm --create-namespace \
   --set ingress.enabled=true \
   --set ingress.host=bmm.example.com

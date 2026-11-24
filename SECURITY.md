@@ -31,7 +31,7 @@ older releases are not patched.
 ## Verifying an image
 
 ```bash
-gh attestation verify oci://ghcr.io/baakhoff/bmm:0.1.0 --repo baakhoff/bmm
+gh attestation verify oci://ghcr.io/baakhoff/bmm:0.1.1 --repo baakhoff/bmm
 ```
 
 This proves the image was built by this repository's release workflow from

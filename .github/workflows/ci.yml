@@ -86,6 +86,15 @@ jobs:
             --set config.passwordLogin=false \
             --set postgresql.enabled=false --set externalDatabase.url=postgres://u:p@db:5432/bmm \
             > rendered/external.yaml
+      - name: Every label value is one Kubernetes accepts, even with build metadata in the version
+        run: |
+          helm package deploy/helm/bmm --version "1.2.3+0123456789ab" --app-version "1.2.3+0123456789ab" -d /tmp/chart
+          helm template bmm /tmp/chart/bmm-1.2.3+0123456789ab.tgz > /tmp/plus.yaml
+          grep -q 'helm.sh/chart: "bmm-1.2.3_0123456789ab"' /tmp/plus.yaml
+          bad=$(grep -E '^\s+(app\.kubernetes\.io|helm\.sh)/[a-z-]+: ' /tmp/plus.yaml \
+            | sed -E 's/^[^:]+: "?([^"]*)"?$/\1/' \
+            | grep -vE '^([A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?)?$' || true)
+          if [ -n "$bad" ]; then echo "Illegal label values:"; echo "$bad"; exit 1; fi
       - name: Validate against the Kubernetes schemas
         run: >
           docker run --rm -v "$PWD/rendered:/rendered" ghcr.io/yannh/kubeconform:v0.7.0
@@ -112,9 +121,13 @@ jobs:
         run: |
           kind create cluster --wait 120s
           kind load docker-image bmm:ci
-      - name: Install the chart
+      - name: Install the chart, packaged the way Flux delivers it
         run: |
-          helm install bmm deploy/helm/bmm --namespace bmm --create-namespace \
+          # Flux installs an OCI chart with the artifact digest appended to the
+          # version. Only the API server rejects what that does to a label, so
+          # the test installs exactly such a version.
+          helm package deploy/helm/bmm --version "0.0.0+ci0123456789" --app-version ci -d /tmp/chart
+          helm install bmm /tmp/chart/bmm-0.0.0+ci0123456789.tgz --namespace bmm --create-namespace \
             --set image.repository=bmm --set image.tag=ci --set image.pullPolicy=Never \
             --set config.updateCheck=false \
             --wait --timeout 5m
@@ -124,7 +137,7 @@ jobs:
           node scripts/smoke.mjs http://localhost:3000 --web
       - name: Upgrade in place and check that nothing was lost
         run: |
-          helm upgrade bmm deploy/helm/bmm --namespace bmm \
+          helm upgrade bmm /tmp/chart/bmm-0.0.0+ci0123456789.tgz --namespace bmm \
             --set image.repository=bmm --set image.tag=ci --set image.pullPolicy=Never \
             --set config.updateCheck=false --set-string podAnnotations.upgraded=yes \
             --wait --timeout 5m
