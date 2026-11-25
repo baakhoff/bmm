@@ -40,8 +40,8 @@ A token carries a list of scopes. `admin` implies all of them.
 | `audit:read`                       | Reading the audit log                               |
 | `tokens:read` / `tokens:write`     | Listing / creating and revoking tokens              |
 
-The resources behind several of these arrive with later milestones. The
-scopes exist now so a token created today keeps its meaning.
+Analytics and the inbox arrive with later milestones; their scopes exist now
+so a token created today keeps its meaning.
 
 Two rules keep tokens contained:
 
@@ -49,6 +49,51 @@ Two rules keep tokens contained:
   for the profiles it is itself limited to.
 - Changing the password and linking single sign-on need a signed-in person.
   No token can do them, not even an `admin` one.
+
+## The resources
+
+| Path                                   | What it is                                                                    |
+| -------------------------------------- | ----------------------------------------------------------------------------- |
+| `/profiles`                            | Personas. Each owns accounts, media and posts.                                |
+| `/networks`                            | Which networks have a developer app configured, and their redirect URIs.      |
+| `/accounts`                            | Accounts connected to a profile. Connecting one takes a person in the web UI. |
+| `/media`                               | Images. Upload as multipart, or `POST /media/import` with a URL or base64.    |
+| `/posts`                               | Drafts, scheduled and published posts, with the outcome per account.          |
+| `/posts/validate`                      | Checks a post against each network's rules without saving it.                 |
+| `/tokens`, `/audit`, `/system/version` | API tokens, the audit log, the running version.                               |
+
+## Publishing a post
+
+```bash
+# 1. Which accounts can this profile post to?
+curl -H "Authorization: Bearer $BMM_TOKEN" "$BMM/api/v1/accounts?profileId=$PROFILE"
+
+# 2. Add an image
+curl -X POST $BMM/api/v1/media -H "Authorization: Bearer $BMM_TOKEN" \
+  -F profileId=$PROFILE -F alt="Our new poster" -F file=@poster.jpg
+
+# 3. Check it first: errors would be refused by the network, warnings are worth knowing
+curl -X POST $BMM/api/v1/posts/validate -H "Authorization: Bearer $BMM_TOKEN" -H "Content-Type: application/json" \
+  -d '{"profileId":"'$PROFILE'","text":"We are live.","mediaIds":["'$MEDIA'"],"targets":[{"accountId":"'$X_ACCOUNT'"},{"accountId":"'$IG_ACCOUNT'"}]}'
+
+# 4. Schedule it. action is draft, schedule or publish.
+curl -X POST $BMM/api/v1/posts -H "Authorization: Bearer $BMM_TOKEN" -H "Content-Type: application/json" \
+  -d '{"profileId":"'$PROFILE'","text":"We are live.","mediaIds":["'$MEDIA'"],
+       "targets":[{"accountId":"'$X_ACCOUNT'","text":"Live now."},{"accountId":"'$IG_ACCOUNT'"}],
+       "action":"schedule","scheduledAt":"2026-12-01T09:30:00+01:00"}'
+
+# 5. Afterwards: a link per account, or the network's error
+curl -H "Authorization: Bearer $BMM_TOKEN" $BMM/api/v1/posts/$POST
+```
+
+A post's `status` summarises its targets: `draft`, `scheduled`, `publishing`,
+`published`, `partial` (some accounts failed) or `failed`. A target that the
+network asked to try later is retried up to four times over about twenty
+minutes. A target is never resent when BMM cannot know whether it went out;
+its error then says so, and `POST /posts/{id}/retry` is yours to call after
+checking the account.
+
+For AI agents there is an MCP server with the same abilities: [MCP](mcp.md).
 
 ## Errors
 

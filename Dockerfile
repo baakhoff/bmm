@@ -23,6 +23,7 @@ ARG VERSION=dev
 ENV NODE_ENV=production \
     BMM_VERSION=$VERSION \
     BMM_WEB_DIR=/app/web \
+    BMM_DATA_DIR=/data \
     DATABASE_URL=pglite:///data/pg
 WORKDIR /app
 COPY --from=build /out/package.json ./package.json

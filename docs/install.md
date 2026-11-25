@@ -8,14 +8,14 @@ their own Postgres; you can point either at one you already run.
 The chart is published as an OCI artifact next to the image.
 
 ```bash
-helm install bmm oci://ghcr.io/baakhoff/charts/bmm --version 0.1.2 \
+helm install bmm oci://ghcr.io/baakhoff/charts/bmm --version 0.2.0 \
   --namespace bmm --create-namespace \
   --set ingress.enabled=true \
   --set ingress.host=bmm.example.com
 ```
 
-What you get: the BMM Deployment, a single-replica Postgres StatefulSet on
-your default StorageClass, a Service, an Ingress on your default
+What you get: the BMM Deployment with a volume for uploaded media, a
+single-replica Postgres StatefulSet on your default StorageClass, a Service, an Ingress on your default
 IngressClass, and NetworkPolicies that let only BMM reach the database.
 
 Things you may need to change:
@@ -44,7 +44,7 @@ The chart works with both. A ready-to-copy Flux `OCIRepository` and
 git clone https://github.com/baakhoff/bmm.git
 cd bmm/deploy/compose
 cp .env.example .env
-# set POSTGRES_PASSWORD in .env (letters and digits only)
+# set POSTGRES_PASSWORD (letters and digits only) and BMM_SECRET_KEY in .env
 docker compose up -d
 ```
 
@@ -61,12 +61,28 @@ the first start.
 
 ## Backups
 
-Everything BMM knows is in its Postgres database. Back that up: a volume
-snapshot, or
+Three things, and you need all three to restore:
 
-```bash
-kubectl -n bmm exec bmm-postgres-0 -- pg_dump -U bmm bmm > bmm.sql
-```
+1. **The database.** Everything BMM knows.
+
+   ```bash
+   kubectl -n bmm exec bmm-postgres-0 -- pg_dump -U bmm bmm > bmm.sql
+   ```
+
+2. **The media volume**, mounted at `/data`: the uploaded images.
+3. **The secret key.** It encrypts the networks' credentials inside the
+   database. A restored database with a different key works, but every
+   account has to be connected again.
+
+   ```bash
+   kubectl -n bmm get secret bmm-key -o jsonpath='{.data.secret-key}' | base64 -d
+   ```
+
+   With Compose it is `BMM_SECRET_KEY` in your `.env`.
+
+The chart marks the key Secret and the media volume to be kept when the
+release is uninstalled, so a mistaken `helm uninstall` does not destroy
+them. Delete them by hand when you really mean to.
 
 ## Upgrading
 

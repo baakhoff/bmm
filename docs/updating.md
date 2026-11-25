@@ -49,7 +49,7 @@ spec:
   interval: 1h
   url: oci://ghcr.io/baakhoff/charts/bmm
   ref:
-    tag: 0.1.2
+    tag: 0.2.0
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -129,3 +129,16 @@ To check that an image really came from this repository:
 ```bash
 gh attestation verify oci://ghcr.io/baakhoff/bmm:<version> --repo baakhoff/bmm
 ```
+
+## Upgrading from 0.1 to 0.2
+
+0.2 adds a volume for uploaded media and an encryption key.
+
+- **Helm:** nothing to do. The chart creates the volume (5 GiB on your
+  default StorageClass; see `persistence` in the values) and generates the
+  key. With Argo CD, set `config.secretKey` or
+  `config.secretKeyExistingSecret`, because a generated key cannot be kept
+  across syncs there. The pod is now replaced rather than rolled, so an
+  upgrade has a few seconds without BMM.
+- **Compose:** add `BMM_SECRET_KEY` to `.env` (`openssl rand -base64 32`)
+  before `docker compose up -d`. The new Compose file adds the volume.

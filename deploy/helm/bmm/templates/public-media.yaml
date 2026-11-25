@@ -1,0 +1,82 @@
+{{- if .Values.publicMedia.ingress.enabled }}
+# Only /public/ is routed here: signed, expiring links to single images.
+# Sign-in, the API and the UI are not reachable through this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "bmm.name" . }}-public-media
+  labels: {{- include "bmm.labels" . | nindent 4 }}
+  {{- with .Values.publicMedia.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.publicMedia.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.publicMedia.ingress.tls.enabled }}
+  tls:
+    - hosts: [{{ .Values.publicMedia.ingress.host | quote }}]
+      {{- with .Values.publicMedia.ingress.tls.secretName }}
+      secretName: {{ . }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.publicMedia.ingress.host | quote }}
+      http:
+        paths:
+          - path: /public/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "bmm.name" . }}
+                port:
+                  name: http
+{{- end }}
+{{- if .Values.publicMedia.cloudflareTunnel.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "bmm.name" . }}-tunnel
+  labels: {{- include "bmm.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "bmm.selector" (dict "Release" .Release "component" "tunnel") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "bmm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: tunnel
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.publicMedia.cloudflareTunnel.image.repository }}:{{ .Values.publicMedia.cloudflareTunnel.image.tag }}"
+          args: [tunnel, --no-autoupdate, --metrics, "0.0.0.0:2000", run]
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "publicMedia.cloudflareTunnel.tokenSecret names the Secret holding the tunnel token (key: token)" .Values.publicMedia.cloudflareTunnel.tokenSecret }}
+                  key: token
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          livenessProbe:
+            httpGet: { path: /ready, port: 2000 }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+{{- end }}

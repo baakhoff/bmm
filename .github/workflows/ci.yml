@@ -85,6 +85,9 @@ jobs:
             --set oidc.issuer=https://id.example.com --set oidc.clientId=bmm --set oidc.clientSecret=secret \
             --set config.passwordLogin=false \
             --set postgresql.enabled=false --set externalDatabase.url=postgres://u:p@db:5432/bmm \
+            --set publicMedia.url=https://media.example.com --set publicMedia.ingress.enabled=true \
+            --set publicMedia.cloudflareTunnel.enabled=true --set publicMedia.cloudflareTunnel.tokenSecret=tunnel \
+            --set persistence.existingClaim=my-claim --set config.secretKeyExistingSecret=my-key \
             > rendered/external.yaml
       - name: Every label value is one Kubernetes accepts, even with build metadata in the version
         run: |

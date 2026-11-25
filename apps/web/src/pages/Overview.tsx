@@ -7,6 +7,7 @@ import { Card, PageHeader, relativeTime } from '../components/ui';
 export function OverviewPage() {
   const me = useMe();
   const tokens = useQuery({ queryKey: ['tokens'], queryFn: api.tokens });
+  const profiles = useQuery({ queryKey: ['profiles'], queryFn: api.profiles });
   const audit = useQuery({ queryKey: ['audit', 'recent'], queryFn: () => api.audit() });
   const recent = audit.data?.items.slice(0, 6) ?? [];
 
@@ -14,8 +15,56 @@ export function OverviewPage() {
     <>
       <PageHeader
         title={`Hello, ${me.data?.user.username}`}
-        lead="This is the foundation release: sign-in, API tokens and the audit log. Profiles, accounts and scheduling build on it next."
+        lead="Create a profile for each persona, connect its accounts, and schedule posts by hand, through the API or with an AI agent over MCP."
       />
+      <div className="mb-5">
+        <Card
+          title="Profiles"
+          action={
+            <Link to="/profiles" className="text-sm font-medium text-brand underline-offset-4 hover:underline">
+              All profiles
+            </Link>
+          }
+        >
+          {profiles.isPending ? (
+            <p className="text-sm text-muted">Loading…</p>
+          ) : profiles.isError ? (
+            <p className="text-sm text-danger">{profiles.error.message}</p>
+          ) : profiles.data.items.length === 0 ? (
+            <p className="text-sm text-muted">
+              No profiles yet.{' '}
+              <Link to="/profiles" className="font-medium text-brand underline-offset-4 hover:underline">
+                Create the first one
+              </Link>{' '}
+              and connect its accounts. Set up the networks under{' '}
+              <Link to="/networks" className="font-medium text-brand underline-offset-4 hover:underline">
+                Networks
+              </Link>{' '}
+              first.
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-2">
+              {profiles.data.items.map((p) => (
+                <li key={p.id}>
+                  <Link
+                    to={`/profiles/${p.id}`}
+                    className="flex items-center gap-2 rounded-full border border-line py-1 pr-3 pl-1 text-sm hover:border-brand"
+                  >
+                    <span
+                      className="grid size-6 place-items-center rounded-full text-xs font-semibold text-white"
+                      style={{ background: p.color }}
+                      aria-hidden="true"
+                    >
+                      {p.name.slice(0, 1).toUpperCase()}
+                    </span>
+                    {p.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Automate it" description="Everything here is also an API.">
           <p className="text-sm text-muted">

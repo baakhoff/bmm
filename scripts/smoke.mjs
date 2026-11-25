@@ -69,6 +69,47 @@ await call('GET', '/api/v1/auth/me', { expect: 401 });
 await call('POST', '/api/v1/auth/login', { body: { username: 'smoke', password: 'smoke test password' } });
 check((await call('GET', '/api/v1/auth/me')).via === 'session', 'password sign-in works after sign-out');
 
+// A 2x2 PNG: decoding it proves the native image library works on this architecture.
+const png =
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQj3KUj3JkgFAAE94C6Vcb8PwAAAAASUVORK5CYII=';
+const profile = await call('POST', '/api/v1/profiles', { body: { name: 'Smoke' }, expect: 201 });
+const media = await call('POST', '/api/v1/media/import', {
+  body: { profileId: profile.id, dataBase64: png, filename: 'dot.png', alt: 'A dot' },
+  expect: 201,
+});
+check(media.width === 2 && media.mime === 'image/png', 'an image is read and stored');
+const draft = await call('POST', '/api/v1/posts', {
+  body: { profileId: profile.id, text: 'smoke', mediaIds: [media.id] },
+  expect: 201,
+});
+check(draft.status === 'draft' && draft.media.length === 1, 'a draft post is saved with its image');
+const networks = await call('GET', '/api/v1/networks');
+check(
+  networks.apps.length === 2 && networks.apps.every((a) => a.configured === false),
+  'networks report as not yet set up',
+);
+
+const admin = await call('POST', '/api/v1/tokens', { body: { name: 'smoke-mcp', scopes: ['admin'] }, expect: 201 });
+const mcp = await fetch(`${base}/mcp`, {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+    authorization: `Bearer ${admin.token}`,
+  },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'list_profiles', arguments: {} },
+  }),
+});
+const mcpBody = await mcp.json();
+check(
+  mcp.status === 200 && mcpBody.result?.structuredContent?.items?.[0]?.name === 'Smoke',
+  'the MCP server answers a tool call',
+);
+
 const spec = await call('GET', '/api/v1/openapi.json');
 check(Boolean(spec.paths['/api/v1/tokens']), 'OpenAPI document is served');
 

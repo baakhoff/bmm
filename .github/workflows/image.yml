@@ -81,6 +81,12 @@ jobs:
           docker run -d --name bmm --read-only --tmpfs /tmp --cap-drop ALL -e BMM_UPDATE_CHECK=false -p 3000:3000 \
             "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}"
           node scripts/smoke.mjs http://localhost:3000 --web || { docker logs bmm; exit 1; }
+      - name: Run the arm64 image too, emulated
+        run: |
+          docker rm -f bmm
+          docker run -d --name bmm-arm --platform linux/arm64 --read-only --tmpfs /tmp --cap-drop ALL -e BMM_UPDATE_CHECK=false -p 3000:3000 \
+            "ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}"
+          node scripts/smoke.mjs http://localhost:3000 --web || { docker logs bmm-arm; exit 1; }
       - name: Refuse to announce an image with a fixable high or critical CVE
         uses: docker://mirror.gcr.io/aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
         with:

@@ -12,10 +12,23 @@ database under `apps/server/data/`, and the web UI on
 <http://localhost:5173>, which proxies `/api` to the API. Open the second
 address.
 
+## Trying the whole thing without real accounts
+
+```bash
+pnpm build
+cd apps/server && pnpm tsx test/e2e-server.ts
+```
+
+starts a complete instance at <http://127.0.0.1:3920> whose X and Instagram
+are stand-ins: connecting an account approves instantly and publishing
+records the calls instead of posting. Enter `x-client` / `x-secret` and
+`ig-client` / `ig-secret` under Networks.
+
 ## Layout
 
 ```
-apps/server       Fastify API, database schema and migrations
+apps/server       Fastify API, MCP server, scheduler, network connectors,
+                  database schema and migrations
 apps/web          React web UI
 packages/shared   Zod schemas shared by both: the single source for request
                   and response shapes, the OpenAPI document and the UI's types
@@ -38,7 +51,12 @@ deploy/compose    Docker Compose install
 
 - A request or response shape is a Zod schema in `packages/shared`. Routes
   validate with it and the UI imports its type; do not write the shape twice.
-- Every state change calls `audit()`.
+- Logic lives in `apps/server/src/services`, taking an actor. REST routes and
+  MCP tools are thin wrappers around the same functions, so they cannot drift.
+- A network is a connector in `apps/server/src/connectors` implementing one
+  interface. Its errors say what happens next: retry, give up, reconnect, or
+  "unknown, do not resend".
+- Every state change calls `audit()` or `auditAs()`.
 - Every route declares the scope it needs with `requireAuth('<scope>')`.
 - Tests go through HTTP (`app.inject`) and assert behaviour a user would
   notice, not internals.

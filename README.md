@@ -7,9 +7,10 @@
 A social media manager you host yourself. Free, open source, and built so that
 everything a person can click, a script or an AI agent can call.
 
-> **Status: foundation release (0.1).** Sign-in, API tokens, the audit log and
-> the deployment tooling work today. Connecting accounts and scheduling posts
-> is the next milestone. See the [roadmap](docs/roadmap.md).
+> **Status: 0.2.** Profiles, X and Instagram accounts, images, scheduling and
+> publishing work, in the web UI, through the REST API and through MCP.
+> Video, analytics, the inbox and per-profile VPNs are next. See the
+> [roadmap](docs/roadmap.md).
 
 ## What it is for
 
@@ -19,8 +20,8 @@ everything a person can click, a script or an AI agent can call.
   optionally its own VPN exit, so two personas never share an IP address.
 - **API first.** The web UI is a client of the same REST API you get. An
   OpenAPI document and interactive reference ship with every instance.
-- **Made for agents.** Scoped API tokens today; an MCP server next, so an AI
-  assistant can draft, schedule and report under limits you set.
+- **Made for agents.** A built-in MCP server lets an AI assistant draft,
+  check, schedule and report, under the limits of the token you give it.
 - **Yours.** Runs on your Kubernetes cluster or with Docker Compose. No
   account with us, no telemetry, no paid tier. The only call home is a
   check for new releases against GitHub's public API, and one setting turns
@@ -45,22 +46,32 @@ of the installs below, which run Postgres.
 | Kubernetes       | [Helm chart](docs/install.md#kubernetes-with-helm), also usable from Flux and Argo CD |
 | A single machine | [Docker Compose](docs/install.md#docker-compose)                                      |
 
-Then: [configuration](docs/configuration.md) · [single sign-on](docs/configuration.md#single-sign-on) ·
+Then: [connect X](docs/networks/x.md) · [connect Instagram](docs/networks/instagram.md) · [public media](docs/public-media.md) · [MCP](docs/mcp.md) · [configuration](docs/configuration.md) · [single sign-on](docs/configuration.md#single-sign-on) ·
 [using the API](docs/api.md) · [updating](docs/updating.md)
 
 ## What works today
 
-- First-run setup, password sign-in, and sign-in through any OpenID Connect
-  provider (Pocket ID, Authentik, Keycloak, Google, ...).
-- API tokens with scopes, optional expiry and per-profile limits. A token can
-  never mint a token stronger than itself.
-- An audit log of every sign-in and change, saying whether a person or a
-  token did it.
-- OpenAPI 3.1 document at `/api/v1/openapi.json`, reference at `/api/docs`.
-- Images for amd64 and arm64. Helm chart with a bundled Postgres, a
-  NetworkPolicy, and a non-root, read-only container.
-- A notice in the UI when a newer release exists, and versioned releases
-  your GitOps tooling can follow.
+- **Profiles** that keep each persona's accounts, images and posts apart.
+- **X and Instagram** through their official APIs, with your own developer
+  apps. Step-by-step guides: [X](docs/networks/x.md),
+  [Instagram](docs/networks/instagram.md).
+- **One post, several accounts**, with different text per account, images
+  with alt text, and Instagram carousels.
+- **Checked before it is sent.** Each network's rules are applied as you
+  type; a post that would be refused cannot be scheduled.
+- **Scheduling that fails honestly.** Retries when a network says "not
+  now", never sends twice when it cannot know whether a post went out, and
+  shows the network's own error when it does not.
+- **REST API** with an OpenAPI document and interactive reference, and
+  **API tokens** limited by scope and by profile.
+- **[MCP server](docs/mcp.md)** so an AI agent can draft, check, schedule
+  and report, within the token you give it.
+- **Audit log** of every change and every publish attempt, by person, token
+  or scheduler.
+- Sign-in with a password or any OpenID Connect provider. Credentials for
+  the networks are encrypted in the database.
+- Images for amd64 and arm64, a Helm chart, Docker Compose, and a notice
+  when a newer release exists.
 
 ## Development
 

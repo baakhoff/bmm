@@ -13,7 +13,9 @@ services:
       - "${BMM_HTTP_PORT:-3000}:3000"
     environment:
       DATABASE_URL: postgres://bmm:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/bmm
+      BMM_SECRET_KEY: ${BMM_SECRET_KEY:?set BMM_SECRET_KEY in .env}
       BMM_PUBLIC_URL: ${BMM_PUBLIC_URL:-}
+      BMM_PUBLIC_MEDIA_URL: ${BMM_PUBLIC_MEDIA_URL:-}
       BMM_TRUST_PROXY: ${BMM_TRUST_PROXY:-false}
       BMM_SETUP_TOKEN: ${BMM_SETUP_TOKEN:-}
       BMM_PASSWORD_LOGIN: ${BMM_PASSWORD_LOGIN:-true}
@@ -23,6 +25,8 @@ services:
       BMM_OIDC_CLIENT_SECRET: ${BMM_OIDC_CLIENT_SECRET:-}
       BMM_OIDC_NAME: ${BMM_OIDC_NAME:-SSO}
       BMM_OIDC_ALLOWED_EMAIL: ${BMM_OIDC_ALLOWED_EMAIL:-}
+    volumes:
+      - bmm-data:/data
     read_only: true
     tmpfs:
       - /tmp
@@ -48,3 +52,4 @@ services:
 
 volumes:
   pgdata:
+  bmm-data:

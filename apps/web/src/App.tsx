@@ -3,8 +3,12 @@ import { Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-rou
 import { ApiError, api } from './api';
 import { Button, Mark, Notice } from './components/ui';
 import { AuditPage } from './pages/Audit';
+import { ComposerPage } from './pages/Composer';
 import { LoginPage } from './pages/Login';
+import { NetworksPage } from './pages/Networks';
 import { OverviewPage } from './pages/Overview';
+import { ProfilePage } from './pages/Profile';
+import { ProfilesPage } from './pages/Profiles';
 import { SettingsPage } from './pages/Settings';
 import { SetupPage } from './pages/Setup';
 import { TokensPage } from './pages/Tokens';
@@ -69,6 +73,11 @@ export function App() {
       <Route path="/login" element={signedIn ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route element={signedIn ? <Shell /> : <Navigate to="/login" replace />}>
         <Route index element={<OverviewPage />} />
+        <Route path="profiles" element={<ProfilesPage />} />
+        <Route path="profiles/:id" element={<ProfilePage />} />
+        <Route path="profiles/:id/compose" element={<ComposerPage />} />
+        <Route path="profiles/:id/posts/:postId" element={<ComposerPage />} />
+        <Route path="networks" element={<NetworksPage />} />
         <Route path="tokens" element={<TokensPage />} />
         <Route path="audit" element={<AuditPage />} />
         <Route path="settings" element={<SettingsPage />} />
@@ -80,6 +89,8 @@ export function App() {
 
 const NAV = [
   { to: '/', label: 'Overview', end: true },
+  { to: '/profiles', label: 'Profiles' },
+  { to: '/networks', label: 'Networks' },
   { to: '/tokens', label: 'API tokens' },
   { to: '/audit', label: 'Audit log' },
   { to: '/settings', label: 'Settings' },

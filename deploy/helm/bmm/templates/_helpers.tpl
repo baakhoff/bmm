@@ -51,3 +51,21 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "bmm.keySecretName" -}}
+{{- .Values.config.secretKeyExistingSecret | default (printf "%s-key" (include "bmm.name" .)) -}}
+{{- end -}}
+
+{{/* Generated once, then read back, like the database password. */}}
+{{- define "bmm.secretKey" -}}
+{{- if .Values.config.secretKey -}}
+{{- .Values.config.secretKey -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace (printf "%s-key" (include "bmm.name" .)) -}}
+{{- if and $existing $existing.data (index $existing.data "secret-key") -}}
+{{- index $existing.data "secret-key" | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 48 -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}

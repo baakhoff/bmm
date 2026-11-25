@@ -15,10 +15,52 @@ config:
   passwordLogin: true
   # If set, creating the first admin requires this value.
   setupToken: ""
+  # Encrypts the networks' credentials in the database. Leave empty to have
+  # one generated and kept across upgrades; with Argo CD set it, or name a
+  # Secret you manage (key: secret-key). Back it up with the database: without
+  # it every account has to be connected again.
+  secretKey: ""
+  secretKeyExistingSecret: ""
   # Ask GitHub a few times a day whether a newer release exists, and say so in
   # the UI. Nothing about the instance is sent.
   updateCheck: true
   logLevel: info
+
+# Instagram downloads images from a public https address instead of accepting
+# uploads. Only /public/ needs to be reachable there; it serves signed,
+# expiring links to single images. See docs/public-media.md.
+publicMedia:
+  # The public address, e.g. https://media.example.com. Empty: Instagram
+  # cannot publish; everything else works.
+  url: ""
+  # Option 1: a second Ingress that exposes only /public/ on a public host.
+  ingress:
+    enabled: false
+    className: ""
+    host: media.example.com
+    annotations: {}
+    tls:
+      enabled: true
+      secretName: ""
+  # Option 2: a Cloudflare Tunnel, which needs no inbound port at all. Create
+  # the tunnel in the Cloudflare dashboard, route its hostname to
+  # http://<release>.<namespace>.svc and put its token in a Secret
+  # (key: token).
+  cloudflareTunnel:
+    enabled: false
+    tokenSecret: ""
+    image:
+      repository: cloudflare/cloudflared
+      tag: "2026.11.2"
+
+# Uploaded media lives here.
+persistence:
+  enabled: true
+  size: 5Gi
+  # Empty: the cluster's default StorageClass.
+  storageClass: ""
+  # Use a claim you manage instead.
+  existingClaim: ""
 
 oidc:
   # Any OpenID Connect provider. Register this redirect URI there:
