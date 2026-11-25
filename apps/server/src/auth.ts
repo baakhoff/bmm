@@ -139,7 +139,7 @@ function checkOrigin(ctx: AppContext, req: FastifyRequest) {
 export function registerAuth(app: FastifyInstance, ctx: AppContext) {
   app.decorateRequest('auth', null);
   app.addHook('onRequest', async (req) => {
-    if (!req.url.startsWith('/api/')) return;
+    if (!req.url.startsWith('/api/') && !/^\/mcp(\/|\?|$)/.test(req.url)) return;
     req.auth = await resolveAuth(ctx, req);
     // Token callers are not browsers acting on ambient credentials. Everything
     // else is checked, signed in or not, which also covers login and setup.

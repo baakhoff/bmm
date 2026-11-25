@@ -38,3 +38,29 @@ export async function audit(ctx: AppContext, req: FastifyRequest | null, event: 
     metadata: event.metadata ?? {},
   });
 }
+
+/** The same record, for work that did not arrive as an HTTP request: MCP tool calls and the scheduler. */
+export async function auditAs(
+  ctx: AppContext,
+  actor: { auth: NonNullable<FastifyRequest['auth']>; ip: string | null } | null,
+  event: AuditEvent,
+): Promise<void> {
+  const a =
+    event.actor ??
+    (actor
+      ? actor.auth.via === 'token'
+        ? { type: 'token' as const, id: actor.auth.tokenId, label: actor.auth.tokenName }
+        : { type: 'user' as const, id: actor.auth.user.id, label: actor.auth.user.username }
+      : { type: 'system' as const, id: null, label: 'scheduler' });
+  await ctx.db.insert(auditLog).values({
+    id: uuidv7(),
+    actorType: a.type,
+    actorId: a.id ?? null,
+    actorLabel: a.label ?? null,
+    action: event.action,
+    targetType: event.targetType ?? null,
+    targetId: event.targetId ?? null,
+    ip: actor?.ip ?? null,
+    metadata: event.metadata ?? {},
+  });
+}

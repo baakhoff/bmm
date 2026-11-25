@@ -33,6 +33,14 @@ const EnvSchema = z.object({
   BMM_OIDC_ALLOWED_EMAIL: optional,
   /** Lets the identity with this `sub` sign in as the existing admin. */
   BMM_OIDC_ALLOWED_SUBJECT: optional,
+  /** Where uploaded media and, unless BMM_SECRET_KEY is set, the encryption key live. */
+  BMM_DATA_DIR: z.string().default('./data'),
+  /** Encrypts network credentials at rest. Unset: a key is created in BMM_DATA_DIR. */
+  BMM_SECRET_KEY: optional,
+  /** A public https address that reaches this instance's /public/ path. Instagram downloads images from it. */
+  BMM_PUBLIC_MEDIA_URL: optional,
+  /** Publish due posts from this process. Turn off to run a UI-only replica. */
+  BMM_SCHEDULER: bool(true),
   /** Directory holding the built web UI. Unset: API only. */
   BMM_WEB_DIR: optional,
   /** Ask GitHub, a few times a day, whether a newer release exists. Sends nothing about this instance. */
@@ -60,6 +68,10 @@ export interface Config {
         allowedSubject: string | undefined;
       }
     | undefined;
+  dataDir: string;
+  secretKey: string | undefined;
+  publicMediaUrl: URL | undefined;
+  scheduler: boolean;
   webDir: string | undefined;
   updateCheck: boolean;
   logLevel: string;
@@ -97,6 +109,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
           allowedSubject: e.BMM_OIDC_ALLOWED_SUBJECT,
         }
       : undefined,
+    dataDir: e.BMM_DATA_DIR,
+    secretKey: e.BMM_SECRET_KEY,
+    publicMediaUrl: e.BMM_PUBLIC_MEDIA_URL ? new URL(e.BMM_PUBLIC_MEDIA_URL) : undefined,
+    scheduler: e.BMM_SCHEDULER,
     webDir: e.BMM_WEB_DIR,
     updateCheck: e.BMM_UPDATE_CHECK,
     logLevel: e.BMM_LOG_LEVEL,

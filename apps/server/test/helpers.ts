@@ -1,6 +1,7 @@
 import type { LightMyRequestResponse } from 'fastify';
 import { type App, type AppDeps, buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
+import { MemoryStorage } from '../src/lib/storage.js';
 
 export const ORIGIN = 'http://bmm.test';
 
@@ -11,9 +12,11 @@ export async function makeApp(env: Record<string, string> = {}, deps: AppDeps = 
       BMM_LOG_LEVEL: 'silent',
       BMM_PUBLIC_URL: ORIGIN,
       BMM_UPDATE_CHECK: 'false',
+      BMM_SCHEDULER: 'false',
+      BMM_SECRET_KEY: 'test-secret-key',
       ...env,
     }),
-    deps,
+    { storage: new MemoryStorage(), ...deps },
   );
   await app.ready();
   return app;

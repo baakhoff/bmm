@@ -49,10 +49,16 @@ export function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(x, y);
 }
 
-/** UUIDv7: time-ordered, so it sorts by creation and indexes well. */
+let lastStamp = 0;
+
+/**
+ * UUIDv7: time-ordered, so it sorts by creation and indexes well. Ids made in
+ * the same millisecond still come out in the order they were asked for.
+ */
 export function uuidv7(now = Date.now()): string {
+  lastStamp = now > lastStamp ? now : lastStamp + 1;
   const b = randomBytes(16);
-  b.writeUIntBE(now, 0, 6);
+  b.writeUIntBE(lastStamp, 0, 6);
   b[6] = ((b[6] as number) & 0x0f) | 0x70;
   b[8] = ((b[8] as number) & 0x3f) | 0x80;
   const h = b.toString('hex');
