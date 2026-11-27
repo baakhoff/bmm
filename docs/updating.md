@@ -134,11 +134,32 @@ gh attestation verify oci://ghcr.io/baakhoff/bmm:<version> --repo baakhoff/bmm
 
 0.2 adds a volume for uploaded media and an encryption key.
 
-- **Helm:** nothing to do. The chart creates the volume (5 GiB on your
-  default StorageClass; see `persistence` in the values) and generates the
-  key. With Argo CD, set `config.secretKey` or
+- **Helm:** one command before the upgrade (below). The chart creates the
+  volume (5 GiB on your default StorageClass; see `persistence` in the
+  values) and generates the key. With Argo CD, set `config.secretKey` or
   `config.secretKeyExistingSecret`, because a generated key cannot be kept
   across syncs there. The pod is now replaced rather than rolled, so an
   upgrade has a few seconds without BMM.
 - **Compose:** add `BMM_SECRET_KEY` to `.env` (`openssl rand -base64 32`)
   before `docker compose up -d`. The new Compose file adds the volume.
+
+### The Helm step
+
+Under 0.1 Kubernetes filled in rolling-update settings on the Deployment by
+itself. 0.2 switches it to `Recreate`, and Kubernetes refuses a `Recreate`
+Deployment that still carries those settings. The upgrade only changes the
+fields the chart sets and leaves those in place, so it fails with
+`spec.strategy.rollingUpdate: Forbidden: may not be specified when strategy
+type is 'Recreate'` and Helm rolls back to 0.1.
+
+Clear them once, then upgrade (replace `bmm` with your namespace and
+release name):
+
+```bash
+kubectl -n bmm patch deployment bmm --type merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+```
+
+Then run `helm upgrade` as usual, or with Flux
+`flux reconcile hr bmm -n bmm --reset` if the release already failed and
+rolled back. A fresh 0.2 install is not affected.
